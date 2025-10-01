@@ -2,8 +2,31 @@
 import { program } from "commander";
 import inquirer from "inquirer";
 import fs from "fs-extra";
-import { $ } from "zx";
+import { execSync } from "child_process";
+import { rmSync } from "fs";
 import axios from "axios";
+
+/**
+ * Get the Bitbucket credentials from the credentials file
+ * @returns {Object} The Bitbucket credentials
+ */
+function getBitbucketCredentials() {
+  try {
+    const bitbucketCredentials = JSON.parse(
+      fs.readFileSync("./bitbucket-credentials.json", "utf8")
+    );
+    return bitbucketCredentials;
+  } catch (error) {
+    console.error(`❌ Le fichier de credentials n'existe pas.
+        Pour créer le fichier, veuillez créer ./bitbucket-credentials.json avec le format :
+        {
+          "username": "votre_username",
+          "token": "votre_token"
+        }`);
+
+    throw error;
+  }
+}
 
 /**
  * Update the permissions of a Bitbucket repository for a specific group
@@ -16,9 +39,7 @@ async function updateBitbucketRepoPermissions(repoName) {
 
   // Gestion de la lecture du fichier de credentials
   try {
-    credentials = JSON.parse(
-      fs.readFileSync("./bitbucket-credentials.json", "utf8")
-    );
+    credentials = getBitbucketCredentials();
   } catch (error) {
     if (error.code === "ENOENT") {
       console.error(`❌ Le fichier de credentials n'existe pas.
@@ -101,9 +122,7 @@ async function createBitbucketRepo(repoName) {
 
   // Gestion de la lecture du fichier de credentials
   try {
-    credentials = JSON.parse(
-      fs.readFileSync("./bitbucket-credentials.json", "utf8")
-    );
+    credentials = getBitbucketCredentials();
   } catch (error) {
     if (error.code === "ENOENT") {
       console.error(`❌ Le fichier de credentials n'existe pas.
@@ -204,14 +223,30 @@ try {
 
 console.log("➡️ Clonage du repo de base...");
 
-await $`git clone --depth 1 git@bitbucket.org:lefigaro/data-vite-scaffolder.git ${projectDir} `;
-await $`cd ${projectDir} && rm -rf .git && git init && git remote add origin ${repoUrl}`;
+execSync(
+  `git clone --depth 1 git@bitbucket.org:lefigaro/data-vite-scaffolder.git ${projectDir}`,
+  { stdio: "inherit" }
+);
+
+// Supprimer le dossier .git de manière compatible avec Windows
+rmSync(`${projectDir}/.git`, { recursive: true, force: true });
+
+// Sauvegarder le répertoire courant
+const initialDir = process.cwd();
+
+// Initialiser un nouveau dépôt Git
+process.chdir(projectDir);
+execSync("git init", { stdio: "inherit" });
+execSync(`git remote add origin ${repoUrl}`, { stdio: "inherit" });
 
 console.log("➡️ Customisation des fichiers...");
-const pkgPath = `${projectDir}/package.json`;
+const pkgPath = "package.json";
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
 pkg["name"] = projectDir;
 pkg["figdata"]["id"] = projectDir;
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+
+// Revenir au répertoire initial
+process.chdir(initialDir);
 
 console.log("✅ Projet initialisé et créé sur Bitbucket !");
