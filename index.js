@@ -173,7 +173,12 @@ Le fichier doit contenir les champs obligatoires :
         },
       },
     });
-    return response.data.links.html.href;
+    // Convertir l'URL HTTP en URL SSH
+    const httpUrl = response.data.links.html.href;
+    // Format attendu: https://bitbucket.org/lefigaro/nom-repo
+    const repoPath = httpUrl.replace("https://bitbucket.org/", "");
+    const sshUrl = `git@bitbucket.org:${repoPath}.git`;
+    return sshUrl;
   } catch (error) {
     console.error(
       "❌ Erreur lors de la création du repo Bitbucket:",
